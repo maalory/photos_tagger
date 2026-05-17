@@ -1,0 +1,16 @@
+Předělal bych frontend následovně: 
+
+Funkce Katalog, třídění:
+z pohledu uživatele bych si chtěl otevřít složku s fotkama (to je nyní v Katalogu - načtení zdroje), nerozumím ale zda je tohle kořenový adresář anebo musím každou složku takhle načítat jednotlivě? Když např. načtu externí disk, kde budou v rootu složky s názvem roku a v nich podadresáře, představoval bych si načíst např. složku 2025, mít možnost všem souborům této složky hromadně nastavit tag 2025, potom procházet podsložky a celé další podsložce nastavit tag např. "Dovolená". Potom bych si fotky procházel individuálně ve velkém rozlišení a individuálně bych jim klávesovou zkratkou přidával tagy.
+
+V sekci Alba bych si představoval mít picklist se všemi tagy a aby se mi zobrazovaly miniatury těchto vyfiltrovaných fotek. Potom bych si je chtěl opět individuálně procházet (s možností přepnout na celou obrazovku a nastavit prezentaci).
+
+Udělej z tohoto návrhu plán implementace a začneme postupnými kroky
+
+zdroj = kořenová složka, scan = rekurzivní
+
+Chtěl bych tagy pro rok a měsíc získávat automaticky z metadat, ale zároveň bych chtěl mít možnost to manuálně hromadně změnit. Jak bys to navrhnul implementovat?
+
+Pokud si zobrazím fullscreen, chtěl bych, abych se mohl posouvat šipkama na další fotku nebo zpět (vycházející zobrazení z vyfiltrovaných fotek).
+
+Pokud v tomto full screen zobrazení přidám tag, chtěl bych, aby se krátce uživateli zobrazil text (pravý roh), ale větším písmem, než když se tagy zobrazují otazníkem (v tomto zobrazení to rovněž zvětši)

@@ -102,68 +102,41 @@ class TaggingService:
     def list_folder_tags(self, folder_id: int) -> list[Tag]:
         return self.tag_repository.list_folder_tags(folder_id)
 
-    def save_folder_tags(
-        self,
-        folder_id: int,
-        raw_tag_names: list[str],
-        include_subfolders: bool = False,
-    ) -> TaggingActionResult:
+    def save_folder_tags(self, folder_id: int, raw_tag_names: list[str]) -> TaggingActionResult:
         normalized_names = _normalize_tag_names(raw_tag_names)
 
         with self.database.connect() as conn:
+            current_tags = self.tag_repository.list_folder_tags(folder_id, conn)
+            current_ids = {tag.id for tag in current_tags}
             desired_tags = [self.tag_repository.get_or_create_tag(name, conn) for name in normalized_names]
             desired_ids = {tag.id for tag in desired_tags}
-            folder_ids = [folder_id]
-            if include_subfolders:
-                folder_ids = self.tag_repository.list_descendant_folder_ids(folder_id, conn)
-            if not folder_ids:
-                raise ValueError(f"Slozka s ID {folder_id} neexistuje.")
 
-            changed_count = 0
-            unchanged_count = 0
-            for target_folder_id in folder_ids:
-                current_tags = self.tag_repository.list_folder_tags(target_folder_id, conn)
-                current_ids = {tag.id for tag in current_tags}
+            for tag_id in sorted(current_ids - desired_ids):
+                self.tag_repository.set_folder_tag_assignment(
+                    folder_id=folder_id,
+                    tag_id=tag_id,
+                    is_assigned=False,
+                    conn=conn,
+                )
 
-                for tag_id in sorted(current_ids - desired_ids):
-                    self.tag_repository.set_folder_tag_assignment(
-                        folder_id=target_folder_id,
-                        tag_id=tag_id,
-                        is_assigned=False,
-                        conn=conn,
-                    )
-
-                for tag_id in sorted(desired_ids - current_ids):
-                    self.tag_repository.set_folder_tag_assignment(
-                        folder_id=target_folder_id,
-                        tag_id=tag_id,
-                        is_assigned=True,
-                        conn=conn,
-                    )
-
-                if current_ids == desired_ids:
-                    unchanged_count += 1
-                else:
-                    changed_count += 1
+            for tag_id in sorted(desired_ids - current_ids):
+                self.tag_repository.set_folder_tag_assignment(
+                    folder_id=folder_id,
+                    tag_id=tag_id,
+                    is_assigned=True,
+                    conn=conn,
+                )
 
             conn.commit()
 
-        if changed_count == 0:
-            if include_subfolders:
-                return TaggingActionResult(message=f"Tagy beze zmeny ve vsech {unchanged_count} slozkach.")
+        if current_ids == desired_ids:
             return TaggingActionResult(message="Tagy slozky beze zmeny.")
 
-        scope_text = "vcetne podslozek" if include_subfolders else "pro slozku"
         if desired_tags:
             return TaggingActionResult(
-                message=(
-                    f"Ulozeny tagy {scope_text} "
-                    f"({changed_count}/{len(folder_ids)} slozek): {', '.join(tag.name for tag in desired_tags)}."
-                )
+                message=f"Ulozeny tagy slozky: {', '.join(tag.name for tag in desired_tags)}."
             )
-        return TaggingActionResult(
-            message=f"Tagy odebrany {scope_text} ({changed_count}/{len(folder_ids)} slozek)."
-        )
+        return TaggingActionResult(message="Tagy slozky byly odebrany.")
 
     def get_asset_tag_state(self, asset_id: int) -> AssetTagState:
         direct_tags = self.tag_repository.list_direct_asset_tags(asset_id)
@@ -185,34 +158,6 @@ class TaggingService:
             if tag is None:
                 raise ValueError(f"Tag s ID {tag_id} neexistuje.")
 
-            current_ids = {item.id for item in self.tag_repository.list_direct_asset_tags(asset_id, conn)}
-            was_assigned = tag.id in current_ids
-            new_value = not was_assigned
-            self.tag_repository.set_asset_tag_assignment(
-                asset_id=asset_id,
-                tag_id=tag.id,
-                is_assigned=new_value,
-                assigned_via=assigned_via,
-                conn=conn,
-            )
-            conn.commit()
-
-        action = TaggingUndoAction(
-            action_type="asset_tag",
-            asset_id=asset_id,
-            tag_id=tag.id,
-            previous_bool=was_assigned,
-        )
-        verb = "Pridan" if new_value else "Odebran"
-        return TaggingActionResult(message=f"{verb} tag '{tag.name}'.", undo_action=action)
-
-    def toggle_tag_by_name(self, asset_id: int, tag_name: str, assigned_via: str = "shortcut") -> TaggingActionResult:
-        normalized_name = tag_name.strip()
-        if not normalized_name:
-            raise ValueError("Nazev tagu nesmi byt prazdny.")
-
-        with self.database.connect() as conn:
-            tag = self.tag_repository.get_or_create_tag(normalized_name, conn)
             current_ids = {item.id for item in self.tag_repository.list_direct_asset_tags(asset_id, conn)}
             was_assigned = tag.id in current_ids
             new_value = not was_assigned

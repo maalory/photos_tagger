@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QLabel, QPlainTextEdit, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPlainTextEdit, QVBoxLayout
 
 
 class FolderTagEditorDialog(QDialog):
@@ -9,14 +9,10 @@ class FolderTagEditorDialog(QDialog):
         self.setWindowTitle("Tagy slozky")
         self.resize(460, 360)
         self._editor = QPlainTextEdit()
-        self._apply_to_subfolders = QCheckBox("Aplikovat i na vsechny podslozky")
         self._build_ui(folder_label, current_tags)
 
     def values(self) -> list[str]:
         return [line.strip() for line in self._editor.toPlainText().splitlines()]
-
-    def apply_to_subfolders(self) -> bool:
-        return self._apply_to_subfolders.isChecked()
 
     def _build_ui(self, folder_label: str, current_tags: list[str]) -> None:
         root_layout = QVBoxLayout(self)
@@ -30,7 +26,6 @@ class FolderTagEditorDialog(QDialog):
         self._editor.setPlaceholderText("napr. rodina\ndovolena\nrok:2024")
         self._editor.setPlainText("\n".join(current_tags))
         root_layout.addWidget(self._editor, 1)
-        root_layout.addWidget(self._apply_to_subfolders)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)

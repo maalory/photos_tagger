@@ -209,6 +209,117 @@ class AssetRepository(BaseRepository):
         assets_by_id = {asset.id: asset for asset in (_map_asset(row) for row in rows)}
         return [assets_by_id[asset_id] for asset_id in normalized_ids if asset_id in assets_by_id]
 
+    def list_ids_by_folder_ids(
+        self,
+        folder_ids: list[int],
+        conn: sqlite3.Connection | None = None,
+    ) -> list[int]:
+        normalized_folder_ids = sorted({int(folder_id) for folder_id in folder_ids})
+        if not normalized_folder_ids:
+            return []
+
+        if conn is None:
+            with self.database.connect() as connection:
+                return self.list_ids_by_folder_ids(normalized_folder_ids, connection)
+
+        placeholders = ", ".join("?" for _ in normalized_folder_ids)
+        rows = conn.execute(
+            f"""
+            SELECT id
+            FROM assets
+            WHERE folder_id IN ({placeholders})
+            ORDER BY captured_at, file_name COLLATE NOCASE
+            """,
+            normalized_folder_ids,
+        ).fetchall()
+        return [int(row["id"]) for row in rows]
+
+    def list_by_effective_tag_ids(
+        self,
+        tag_ids: list[int],
+        require_all: bool = True,
+        photos_only: bool = True,
+        conn: sqlite3.Connection | None = None,
+    ) -> list[Asset]:
+        normalized_tag_ids = sorted({int(tag_id) for tag_id in tag_ids})
+        if conn is None:
+            with self.database.connect() as connection:
+                return self.list_by_effective_tag_ids(
+                    normalized_tag_ids,
+                    require_all=require_all,
+                    photos_only=photos_only,
+                    conn=connection,
+                )
+
+        if not normalized_tag_ids:
+            params: list[object] = []
+            where_sql = ""
+            if photos_only:
+                where_sql = " WHERE media_type = ?"
+                params.append(MediaType.PHOTO.value)
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM assets
+                {where_sql}
+                ORDER BY captured_at, file_name COLLATE NOCASE
+                """,
+                params,
+            ).fetchall()
+            return [_map_asset(row) for row in rows]
+
+        placeholders = ", ".join("?" for _ in normalized_tag_ids)
+        params = list(normalized_tag_ids)
+        where_clauses = [f"eat.tag_id IN ({placeholders})"]
+        if photos_only:
+            where_clauses.append("a.media_type = ?")
+            params.append(MediaType.PHOTO.value)
+
+        required_count = len(normalized_tag_ids) if require_all else 1
+        params.append(required_count)
+        comparator = "=" if require_all else ">="
+        rows = conn.execute(
+            f"""
+            WITH RECURSIVE folder_ancestors(asset_id, folder_id) AS (
+                SELECT id, folder_id
+                FROM assets
+                WHERE folder_id IS NOT NULL
+
+                UNION ALL
+
+                SELECT fa.asset_id, f.parent_id
+                FROM folder_ancestors fa
+                INNER JOIN folders f ON f.id = fa.folder_id
+                WHERE f.parent_id IS NOT NULL
+            ),
+            effective_asset_tags AS (
+                SELECT asset_id, tag_id
+                FROM asset_tags
+
+                UNION
+
+                SELECT fa.asset_id, ft.tag_id
+                FROM folder_ancestors fa
+                INNER JOIN folder_tags ft ON ft.folder_id = fa.folder_id
+
+                UNION
+
+                SELECT a.id AS asset_id, et.tag_id
+                FROM assets a
+                INNER JOIN event_tags et ON et.event_id = a.event_id
+            )
+            SELECT a.*
+            FROM assets a
+            INNER JOIN effective_asset_tags eat ON eat.asset_id = a.id
+            WHERE {" AND ".join(where_clauses)}
+            GROUP BY a.id
+            HAVING COUNT(DISTINCT eat.tag_id) {comparator} ?
+            ORDER BY a.captured_at, a.file_name COLLATE NOCASE
+            """,
+            params,
+        ).fetchall()
+        return [_map_asset(row) for row in rows]
+
     def upsert_scanned_assets(
         self,
         source_id: int,
@@ -491,6 +602,36 @@ class TagRepository(BaseRepository):
         ).fetchall()
         return [_map_tag(row) for row in rows]
 
+    def list_descendant_folder_ids(
+        self,
+        folder_id: int,
+        conn: sqlite3.Connection | None = None,
+    ) -> list[int]:
+        if conn is None:
+            with self.database.connect() as connection:
+                return self.list_descendant_folder_ids(folder_id, connection)
+
+        rows = conn.execute(
+            """
+            WITH RECURSIVE folder_tree(id) AS (
+                SELECT id
+                FROM folders
+                WHERE id = ?
+
+                UNION ALL
+
+                SELECT f.id
+                FROM folders f
+                INNER JOIN folder_tree ft ON ft.id = f.parent_id
+            )
+            SELECT id
+            FROM folder_tree
+            ORDER BY id
+            """,
+            (folder_id,),
+        ).fetchall()
+        return [int(row["id"]) for row in rows]
+
     def list_effective_asset_tags(
         self,
         asset_id: int,
@@ -502,6 +643,19 @@ class TagRepository(BaseRepository):
 
         rows = conn.execute(
             """
+            WITH RECURSIVE folder_tree(id) AS (
+                SELECT folder_id
+                FROM assets
+                WHERE id = ? AND folder_id IS NOT NULL
+
+                UNION ALL
+
+                SELECT f.parent_id
+                FROM folders f
+                INNER JOIN folder_tree ftree ON ftree.id = f.id
+                WHERE f.parent_id IS NOT NULL
+            )
+
             SELECT t.id, t.name, t.slug, t.category, t.color, t.description, t.created_at, 'asset' AS tag_scope
             FROM asset_tags at
             INNER JOIN tags t ON t.id = at.tag_id
@@ -509,11 +663,11 @@ class TagRepository(BaseRepository):
 
             UNION ALL
 
-            SELECT t.id, t.name, t.slug, t.category, t.color, t.description, t.created_at, 'folder' AS tag_scope
-            FROM assets a
-            INNER JOIN folder_tags ft ON ft.folder_id = a.folder_id
+            SELECT DISTINCT
+                t.id, t.name, t.slug, t.category, t.color, t.description, t.created_at, 'folder' AS tag_scope
+            FROM folder_tree ftree
+            INNER JOIN folder_tags ft ON ft.folder_id = ftree.id
             INNER JOIN tags t ON t.id = ft.tag_id
-            WHERE a.id = ?
 
             UNION ALL
 
@@ -528,6 +682,72 @@ class TagRepository(BaseRepository):
             (asset_id, asset_id, asset_id),
         ).fetchall()
         return [(_map_tag(row), TagScope(str(row["tag_scope"]))) for row in rows]
+
+    def get_time_tag_overrides(
+        self,
+        asset_ids: list[int],
+        conn: sqlite3.Connection | None = None,
+    ) -> dict[int, tuple[str, int | None, int | None]]:
+        normalized_ids = sorted({int(asset_id) for asset_id in asset_ids})
+        if not normalized_ids:
+            return {}
+
+        if conn is None:
+            with self.database.connect() as connection:
+                return self.get_time_tag_overrides(normalized_ids, connection)
+
+        placeholders = ", ".join("?" for _ in normalized_ids)
+        rows = conn.execute(
+            f"""
+            SELECT asset_id, mode, manual_year, manual_month
+            FROM asset_time_tag_overrides
+            WHERE asset_id IN ({placeholders})
+            """,
+            normalized_ids,
+        ).fetchall()
+        return {
+            int(row["asset_id"]): (
+                str(row["mode"]),
+                int(row["manual_year"]) if row["manual_year"] is not None else None,
+                int(row["manual_month"]) if row["manual_month"] is not None else None,
+            )
+            for row in rows
+        }
+
+    def set_time_tag_override(
+        self,
+        asset_id: int,
+        mode: str,
+        manual_year: int | None,
+        manual_month: int | None,
+        conn: sqlite3.Connection,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO asset_time_tag_overrides (asset_id, mode, manual_year, manual_month, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                mode = excluded.mode,
+                manual_year = excluded.manual_year,
+                manual_month = excluded.manual_month,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (asset_id, mode, manual_year, manual_month),
+        )
+
+    def delete_time_tag_overrides(
+        self,
+        asset_ids: list[int],
+        conn: sqlite3.Connection,
+    ) -> None:
+        normalized_ids = sorted({int(asset_id) for asset_id in asset_ids})
+        if not normalized_ids:
+            return
+        placeholders = ", ".join("?" for _ in normalized_ids)
+        conn.execute(
+            f"DELETE FROM asset_time_tag_overrides WHERE asset_id IN ({placeholders})",
+            normalized_ids,
+        )
 
     def set_asset_tag_assignment(
         self,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import json
+from typing import Callable
 
 from photos_tagger.catalog.repositories import AssetRepository
 from photos_tagger.domain import (
@@ -43,12 +44,14 @@ class DateCorrectionService:
         metadata_repository: MetadataRepository,
         date_correction_repository: DateCorrectionRepository,
         captured_at_resolver: CapturedAtResolver,
+        on_assets_recomputed: Callable[[list[int]], None] | None = None,
     ) -> None:
         self.database = database
         self.asset_repository = asset_repository
         self.metadata_repository = metadata_repository
         self.date_correction_repository = date_correction_repository
         self.captured_at_resolver = captured_at_resolver
+        self.on_assets_recomputed = on_assets_recomputed
 
     def apply_fixed_datetime(
         self,
@@ -153,6 +156,7 @@ class DateCorrectionService:
 
             updated_count = 0
             skipped_count = 0
+            updated_asset_ids: list[int] = []
 
             for asset_id in normalized_ids:
                 asset = self.asset_repository.get_by_id(asset_id, conn)
@@ -196,8 +200,12 @@ class DateCorrectionService:
                     conn=conn,
                 )
                 updated_count += 1
+                updated_asset_ids.append(asset_id)
 
             conn.commit()
+
+        if self.on_assets_recomputed is not None and updated_asset_ids:
+            self.on_assets_recomputed(updated_asset_ids)
 
         return DateCorrectionSummary(
             batch=batch,
@@ -223,6 +231,7 @@ class DateCorrectionService:
 
             updated_count = 0
             skipped_count = 0
+            updated_asset_ids: list[int] = []
 
             for asset_id in normalized_ids:
                 asset = self.asset_repository.get_by_id(asset_id, conn)
@@ -269,8 +278,12 @@ class DateCorrectionService:
                     conn=conn,
                 )
                 updated_count += 1
+                updated_asset_ids.append(asset_id)
 
             conn.commit()
+
+        if self.on_assets_recomputed is not None and updated_asset_ids:
+            self.on_assets_recomputed(updated_asset_ids)
 
         return DateCorrectionSummary(
             batch=batch,

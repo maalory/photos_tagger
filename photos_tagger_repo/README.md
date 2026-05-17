@@ -71,43 +71,6 @@ python -m venv "$env:LOCALAPPDATA\PhotosTagger\venv"
 .\start.bat
 ```
 
-## Distribuce jako EXE (bez instalace Pythonu u uzivatele)
-
-Pro koncoveho uzivatele lze pripravit samostatny `.exe` soubor, kde neni potreba instalovat Python ani balicky.
-
-### Build na vyvojarskem PC
-
-1. nainstaluj PyInstaller:
-
-```powershell
-python -m pip install pyinstaller
-```
-
-2. spust build:
-
-```powershell
-python .\build_exe.py
-```
-
-Vysledkem je:
-
-- `dist\PhotosTagger.exe` (single-file varianta)
-
-Volitelne muzes vytvorit onedir balicek:
-
-```powershell
-python .\build_exe.py --onedir
-```
-
-Vysledkem je:
-
-- `dist\PhotosTagger\PhotosTagger.exe`
-
-Poznamky:
-
-- EXE build se dela na stejne platforme, kde se ma aplikace spoustet (Windows -> Windows).
-- Databaze se dale uklada do `%LOCALAPPDATA%\PhotosTagger`, stejne jako pri beznem startu.
-
 ## Co je zatim zamerne jen skeleton
 
 - skutecna indexace souboru

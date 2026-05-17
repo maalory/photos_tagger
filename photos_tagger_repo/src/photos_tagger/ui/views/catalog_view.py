@@ -11,14 +11,11 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
-    QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from photos_tagger.bootstrap import ApplicationContext
-from photos_tagger.domain import Folder
 from photos_tagger.catalog import DuplicateSourceError, SourceNotFoundError
 
 
@@ -36,8 +33,8 @@ class CatalogView(QWidget):
         root_layout.setSpacing(16)
 
         intro = QLabel(
-            "Zdroj je korenova slozka. Scan je rekurzivni, takze po naskenovani zdroje se projdou i vsechny podslozky. "
-            "Napriklad kdyz pridas slozku '2025', aplikace nacita i jeji vnorene adresare."
+            "Katalog je vstupní bod pro správu zdrojových složek, databáze a cache miniatur. "
+            "Tato verze už umí přidat root složku a skutečně naskenovat podporované fotky a videa do SQLite katalogu."
         )
         intro.setWordWrap(True)
         root_layout.addWidget(intro)
@@ -54,7 +51,6 @@ class CatalogView(QWidget):
         sources_layout = QVBoxLayout(sources_box)
         self.sources_list = QListWidget()
         sources_layout.addWidget(self.sources_list)
-        self.sources_list.currentItemChanged.connect(self._on_source_selection_changed)
 
         buttons_row = QHBoxLayout()
 
@@ -73,20 +69,6 @@ class CatalogView(QWidget):
         buttons_row.addStretch(1)
         sources_layout.addLayout(buttons_row)
         root_layout.addWidget(sources_box)
-
-        folders_box = QGroupBox("Naskenovana struktura slozek")
-        folders_layout = QVBoxLayout(folders_box)
-        folders_help = QLabel(
-            "Strom se naplni po spusteni scanu. Slouzi jako rychla kontrola, co vsechno se pod vybranym zdrojem uz importovalo."
-        )
-        folders_help.setWordWrap(True)
-        folders_layout.addWidget(folders_help)
-        self.folders_tree = QTreeWidget()
-        self.folders_tree.setHeaderHidden(True)
-        self.folders_tree.setRootIsDecorated(True)
-        self.folders_tree.setAlternatingRowColors(True)
-        folders_layout.addWidget(self.folders_tree, 1)
-        root_layout.addWidget(folders_box, 1)
 
         counts_box = QGroupBox("Aktuální stav katalogu")
         counts_layout = QFormLayout(counts_box)
@@ -108,7 +90,6 @@ class CatalogView(QWidget):
             placeholder = QListWidgetItem("Zatím nejsou přidané žádné zdroje.")
             placeholder.setFlags(Qt.ItemIsEnabled)
             self.sources_list.addItem(placeholder)
-            self._show_folder_tree_message("Nejdriv pridej zdrojovou slozku.")
             return
 
         for index, source in enumerate(sources):
@@ -120,59 +101,6 @@ class CatalogView(QWidget):
 
         if selected_source_id is None and self.sources_list.count() > 0:
             self.sources_list.setCurrentRow(0)
-        self._refresh_folder_tree(self._get_selected_source_id())
-
-    def _on_source_selection_changed(
-        self,
-        current: QListWidgetItem | None,
-        _previous: QListWidgetItem | None = None,
-    ) -> None:
-        source_id = None if current is None else current.data(Qt.UserRole)
-        self._refresh_folder_tree(None if source_id is None else int(source_id))
-
-    def _refresh_folder_tree(self, source_id: int | None) -> None:
-        if source_id is None:
-            self._show_folder_tree_message("Vyber zdroj, ktery chces zkontrolovat.")
-            return
-
-        folders = self.context.folder_repository.list_by_source(source_id)
-        if not folders:
-            self._show_folder_tree_message("Vybrany zdroj jeste nebyl naskenovany.")
-            return
-
-        self.folders_tree.clear()
-        items_by_id: dict[int, QTreeWidgetItem] = {}
-        root_items: list[QTreeWidgetItem] = []
-
-        for folder in folders:
-            item = QTreeWidgetItem([self._folder_label(folder)])
-            item.setData(0, Qt.UserRole, folder.id)
-            items_by_id[folder.id] = item
-            if folder.parent_id is None:
-                root_items.append(item)
-                continue
-
-            parent_item = items_by_id.get(int(folder.parent_id))
-            if parent_item is None:
-                root_items.append(item)
-            else:
-                parent_item.addChild(item)
-
-        for item in root_items:
-            self.folders_tree.addTopLevelItem(item)
-        self.folders_tree.expandToDepth(1)
-
-    def _show_folder_tree_message(self, message: str) -> None:
-        self.folders_tree.clear()
-        item = QTreeWidgetItem([message])
-        item.setFlags(Qt.ItemIsEnabled)
-        self.folders_tree.addTopLevelItem(item)
-
-    @staticmethod
-    def _folder_label(folder: Folder) -> str:
-        if folder.relative_path == "":
-            return f"{folder.folder_name} (root)"
-        return folder.folder_name
 
     def _refresh_counts(self) -> None:
         counts = {

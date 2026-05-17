@@ -6,7 +6,7 @@ from photos_tagger.catalog import AlbumRepository, AssetRepository, CatalogImpor
 from photos_tagger.config import AppPaths, build_app_paths
 from photos_tagger.metadata import CapturedAtResolver, DateCorrectionRepository, DateCorrectionService, ExifService, MetadataRepository
 from photos_tagger.storage.db import DatabaseManager
-from photos_tagger.tagging import TaggingService, TimeTagService
+from photos_tagger.tagging import TaggingService
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +27,6 @@ class ApplicationContext:
     catalog_import_service: CatalogImportService
     date_correction_service: DateCorrectionService
     tagging_service: TaggingService
-    time_tag_service: TimeTagService
 
 
 class ApplicationBootstrap:
@@ -56,11 +55,6 @@ class ApplicationBootstrap:
         directory_scanner = DirectoryScanner()
         exif_service = ExifService()
         captured_at_resolver = CapturedAtResolver()
-        time_tag_service = TimeTagService(
-            database=database,
-            asset_repository=asset_repository,
-            tag_repository=tag_repository,
-        )
         catalog_import_service = CatalogImportService(
             database=database,
             source_repository=source_repository,
@@ -71,10 +65,6 @@ class ApplicationBootstrap:
             date_correction_repository=date_correction_repository,
             exif_service=exif_service,
             captured_at_resolver=captured_at_resolver,
-            on_assets_imported=lambda asset_ids: time_tag_service.sync_time_tags_for_assets(
-                asset_ids,
-                assigned_via="import",
-            ),
         )
         date_correction_service = DateCorrectionService(
             database=database,
@@ -82,10 +72,6 @@ class ApplicationBootstrap:
             metadata_repository=metadata_repository,
             date_correction_repository=date_correction_repository,
             captured_at_resolver=captured_at_resolver,
-            on_assets_recomputed=lambda asset_ids: time_tag_service.sync_time_tags_for_assets(
-                asset_ids,
-                assigned_via="import",
-            ),
         )
         tagging_service = TaggingService(
             database=database,
@@ -110,5 +96,4 @@ class ApplicationBootstrap:
             catalog_import_service=catalog_import_service,
             date_correction_service=date_correction_service,
             tagging_service=tagging_service,
-            time_tag_service=time_tag_service,
         )

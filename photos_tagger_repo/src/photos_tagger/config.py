@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 import os
-import sys
 
 APP_NAME = "PhotosTagger"
 
@@ -18,11 +17,6 @@ class AppPaths:
 
 
 def get_project_root() -> Path:
-    if getattr(sys, "frozen", False):
-        bundle_dir = getattr(sys, "_MEIPASS", None)
-        if bundle_dir:
-            return Path(str(bundle_dir))
-        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
 
 
