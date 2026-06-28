@@ -29,7 +29,7 @@ call :ensure_bootstrap_python
 if errorlevel 1 goto :launcher_error
 
 if not exist "%VENV_DIR%\Scripts\python.exe" (
-    echo [1/4] Vytvarim virtualni prostredi mimo projekt...
+    echo [1/5] Vytvarim virtualni prostredi mimo projekt...
     call :run_bootstrap -m venv "%VENV_DIR%"
     if errorlevel 1 (
         echo.
@@ -48,7 +48,7 @@ if not exist "%PYTHON_BIN%" (
     goto :launcher_error
 )
 
-echo [2/4] Kontroluji pip...
+echo [2/5] Kontroluji pip...
 "%PYTHON_BIN%" -m pip --version >nul 2>nul
 if errorlevel 1 (
     echo.
@@ -56,7 +56,7 @@ if errorlevel 1 (
     goto :launcher_error
 )
 
-echo [3/4] Kontroluji Python zavislosti...
+echo [3/5] Kontroluji Python zavislosti...
 "%PYTHON_BIN%" -c "import importlib.util,sys; missing=[m for m in ('PySide6','PIL') if importlib.util.find_spec(m) is None]; sys.exit(0 if not missing else 2)"
 if errorlevel 2 (
     echo Chybi nektere zavislosti. Spoustim instalaci z requirements.txt...
@@ -69,7 +69,12 @@ if errorlevel 2 (
 )
 
 echo.
-echo [4/4] Spoustim aplikaci...
+echo [4/5] Kontroluji zdrojaky na merge konflikty...
+call :check_source_conflicts
+if errorlevel 1 goto :launcher_error
+
+echo.
+echo [5/5] Spoustim aplikaci...
 echo.
 set "PYTHONPATH=%CD%\src"
 "%PYTHON_BIN%" -m photos_tagger.main
@@ -113,6 +118,20 @@ if /I "%BOOTSTRAP_CMD%"=="python" (
 )
 
 exit /b 1
+
+:check_source_conflicts
+for /r "%CD%\src" %%F in (*.py) do (
+    findstr /B /R /C:"<<<<<<< " /C:"=======$" /C:">>>>>>> " "%%F" >nul
+    if not errorlevel 1 (
+        echo.
+        echo Ve zdrojacich je nevyreseny Git merge konflikt:
+        echo   %%F
+        echo.
+        echo Oprav soubor nebo nahraj cistou kopii projektu.
+        exit /b 1
+    )
+)
+exit /b 0
 
 :launcher_error_with_code
 pause
