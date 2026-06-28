@@ -1,0 +1,28 @@
+A - Adélka
+B - Books - knihy
+C - Chata a les
+D - Dokumenty
+E - Elenka
+F - Kultura
+G - Vývoj v okolí
+H - Hory
+I - Sníh
+J - 
+K - Kolo
+L - Lesy a příroda (kromě chaty)
+M - Markéta
+N - Narozeniny
+O - Obrázky, malování
+P - Procházky
+Q - Stavba a zahrada
+R - Rodina
+S - Sporty
+T - Traveling a dovolený
+U - Party
+V - Výlety
+W - Práce
+X - Top výběr
+Y - Poznámky
+Z - Zvířata
+; - Výběr (prezentace)
+\ - Top foto

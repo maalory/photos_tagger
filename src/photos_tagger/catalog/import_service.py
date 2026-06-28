@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from photos_tagger.catalog.repositories import AssetRepository, FolderRepository, SourceRepository
 from photos_tagger.catalog.scan_service import DirectoryScanner
@@ -34,6 +35,7 @@ class CatalogImportService:
         date_correction_repository: DateCorrectionRepository,
         exif_service: ExifService,
         captured_at_resolver: CapturedAtResolver,
+        on_assets_imported: Callable[[list[int]], None] | None = None,
     ) -> None:
         self.database = database
         self.source_repository = source_repository
@@ -44,6 +46,7 @@ class CatalogImportService:
         self.date_correction_repository = date_correction_repository
         self.exif_service = exif_service
         self.captured_at_resolver = captured_at_resolver
+        self.on_assets_imported = on_assets_imported
 
     def import_source(self, source_id: int) -> CatalogImportSummary:
         source = self.source_repository.get_by_id(source_id)
@@ -84,6 +87,10 @@ class CatalogImportService:
                 )
 
             conn.commit()
+
+        if self.on_assets_imported is not None:
+            imported_asset_ids = [asset_id_map[asset.relative_path] for asset in scan_result.assets]
+            self.on_assets_imported(imported_asset_ids)
 
         return CatalogImportSummary(
             source=source,

@@ -1,0 +1,11 @@
+﻿.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite3
+*.db
+Thumbs.db
+user_data/
+build/
+dist/
+*.spec

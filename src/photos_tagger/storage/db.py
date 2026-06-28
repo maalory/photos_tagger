@@ -14,7 +14,7 @@ class DatabaseManager:
 
     @property
     def schema_path(self) -> Path:
-        return self.paths.project_root / "database" / "schema.sql"
+        return self.paths.resource_root / "database" / "schema.sql"
 
     def initialize_schema(self) -> None:
         ensure_app_paths(self.paths)

@@ -71,6 +71,52 @@ python -m venv "$env:LOCALAPPDATA\PhotosTagger\venv"
 .\start.bat
 ```
 
+## Distribuce jako EXE (bez instalace Pythonu u uzivatele)
+
+Pro koncoveho uzivatele lze pripravit samostatny `.exe` soubor, kde neni potreba instalovat Python ani balicky.
+
+### Build na vyvojarskem PC
+
+1. spust build:
+
+```powershell
+python .\build_exe.py
+```
+
+Build skript na Windows automaticky:
+
+- pokud je k dispozici `py -3.11`, vytvori si vlastni build venv v `%LOCALAPPDATA%\PhotosTagger\build-venv-py311`
+- doinstaluje do nej `requirements.txt` a `pyinstaller`
+- kdyz se `3.11` build env nepovede pripravit, pouzije jako fallback existujici runtime venv aplikace
+- pripravi doporuceny `onedir` build, ktery je stabilnejsi pro starsi Windows 10 nez `onefile`
+
+Vysledkem je:
+
+- `dist\PhotosTagger\PhotosTagger.exe`
+- `dist\PhotosTagger\tagy.txt`
+
+Tento vystup pak muzes spoustet primo pres:
+
+```bat
+dist\PhotosTagger\PhotosTagger.exe
+```
+
+Volitelne muzes vytvorit i `onefile` variantu:
+
+```powershell
+python .\build_exe.py --onefile
+```
+
+Vysledkem je:
+
+- `dist\PhotosTagger.exe`
+
+Poznamky:
+
+- EXE build se dela na stejne platforme, kde se ma aplikace spoustet (Windows -> Windows).
+- Databaze se dale uklada do `%LOCALAPPDATA%\PhotosTagger`, stejne jako pri beznem startu.
+- `tagy.txt` se pri EXE behu cte primarne vedle `PhotosTagger.exe`; pokud je slozka jen pro cteni, pouzije se fallback `%LOCALAPPDATA%\PhotosTagger\tagy.txt`.
+
 ## Co je zatim zamerne jen skeleton
 
 - skutecna indexace souboru

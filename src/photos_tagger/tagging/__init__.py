@@ -7,6 +7,8 @@ from photos_tagger.tagging.service import (
     TaggingService,
     TaggingUndoAction,
 )
+from photos_tagger.tagging.tagy_file import TagyShortcuts, load_tagy_shortcuts
+from photos_tagger.tagging.time_tag_service import TimeTagService, TimeTagUpdateSummary
 
 __all__ = [
     "AssetTagState",
@@ -16,4 +18,8 @@ __all__ = [
     "TaggingActionResult",
     "TaggingService",
     "TaggingUndoAction",
+    "TagyShortcuts",
+    "TimeTagService",
+    "TimeTagUpdateSummary",
+    "load_tagy_shortcuts",
 ]

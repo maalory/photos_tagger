@@ -162,6 +162,15 @@ CREATE TABLE IF NOT EXISTS asset_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS asset_time_tag_overrides (
+    asset_id INTEGER PRIMARY KEY,
+    mode TEXT NOT NULL DEFAULT 'auto' CHECK (mode IN ('auto', 'manual')),
+    manual_year INTEGER,
+    manual_month INTEGER,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS folder_tags (
     folder_id INTEGER NOT NULL,
     tag_id INTEGER NOT NULL,
@@ -233,6 +242,7 @@ CREATE INDEX IF NOT EXISTS idx_asset_date_corrections_asset_id ON asset_date_cor
 CREATE INDEX IF NOT EXISTS idx_asset_date_corrections_batch_id ON asset_date_corrections(batch_id);
 CREATE INDEX IF NOT EXISTS idx_asset_date_corrections_is_active ON asset_date_corrections(is_active);
 CREATE INDEX IF NOT EXISTS idx_asset_tags_tag_id ON asset_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_asset_time_tag_overrides_mode ON asset_time_tag_overrides(mode);
 CREATE INDEX IF NOT EXISTS idx_folder_tags_tag_id ON folder_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_event_tags_tag_id ON event_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_albums_type ON albums(album_type);
